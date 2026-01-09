@@ -1,0 +1,330 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Line {
+  id          String       @id @default(uuid())
+  name        String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  finalizedAt DateTime?
+  finalizedBy String?
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  status      ReviewStatus @default(DRAFT)
+  machines    Machine[]
+}
+
+model Machine {
+  id          String       @id @default(uuid())
+  name        String
+  lineId      String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  finalizedAt DateTime?
+  finalizedBy String?
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  status      ReviewStatus @default(DRAFT)
+  line        Line         @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+
+  @@index([lineId])
+}
+
+model Task {
+  id           String       @id @default(uuid())
+  name         String
+  description  String?
+  machineId    String
+  trainingLink String?
+
+  categoryId   String?
+  phaseId      String?
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  finalizedAt  DateTime?
+  finalizedBy  String?
+  reviewedAt   DateTime?
+  reviewedBy   String?
+  status       ReviewStatus @default(DRAFT)
+
+  steps        Step[]
+  machine      Machine      @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  category     TaskCategory? @relation(fields: [categoryId], references: [id])
+  phase        TaskPhase?    @relation(fields: [phaseId], references: [id])
+
+  @@index([machineId])
+  @@index([categoryId])
+  @@index([phaseId])
+}
+
+model TaskCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks     Task[]
+}
+
+model TaskPhase {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks     Task[]
+}
+
+model Step {
+  id          String                 @id @default(uuid())
+  stepNo      Int
+  title       String
+  method      String?
+  trainingLink  String? 
+  taskId      String
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  finalizedAt DateTime?
+  finalizedBy String?
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  status      ReviewStatus           @default(DRAFT)
+  task        Task                   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assessments StepHazardAssessment[]
+
+  @@unique([taskId, stepNo])
+  @@index([taskId])
+}
+
+model HazardCategory {
+  id        String   @id @default(uuid())
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  hazards   Hazard[]
+}
+
+model Hazard {
+  id          String                 @id @default(uuid())
+  categoryId  String
+  code        String?                @unique
+  name        String
+  description String?
+  active      Boolean                @default(true)
+  sortOrder   Int                    @default(0)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  category    HazardCategory         @relation(fields: [categoryId], references: [id])
+  assessments StepHazardAssessment[]
+
+  @@index([categoryId])
+}
+
+model RiskMatrix {
+  id          String                 @id @default(uuid())
+  name        String
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now())
+  cells       RiskMatrixCell[]
+  assessments StepHazardAssessment[]
+}
+
+model RiskMatrixCell {
+  id          String     @id @default(uuid())
+  matrixId    String
+  severity    Int
+  probability Int
+  rating      Int
+  band        RiskBand
+  matrix      RiskMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+
+  @@unique([matrixId, severity, probability])
+  @@index([matrixId])
+}
+
+model StepHazardAssessment {
+  id                  String              @id @default(uuid())
+  stepId              String
+  hazardId            String
+  matrixId            String
+  unsafeConditions    String?
+  unsafeActs          String?
+  potentialHarm       String?
+  existingSeverity    Int?
+  existingProbability Int?
+  existingRating      Int?
+  existingBand        RiskBand?
+  newSeverity         Int?
+  newProbability      Int?
+  newRating           Int?
+  newBand             RiskBand?
+  notes               String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  finalizedAt         DateTime?
+  finalizedBy         String?
+  reviewedAt          DateTime?
+  reviewedBy          String?
+  status              ReviewStatus        @default(DRAFT)
+  controls            AssessmentControl[]
+  hazard              Hazard              @relation(fields: [hazardId], references: [id])
+  matrix              RiskMatrix          @relation(fields: [matrixId], references: [id])
+  step                Step                @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@unique([stepId, hazardId])
+  @@index([stepId])
+  @@index([hazardId])
+}
+
+model AssessmentControl {
+  id           String               @id @default(uuid())
+  assessmentId String
+  phase        ControlPhase
+  type         ControlType
+  description  String
+
+  categoryId   String?
+  category     ActionCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  owner        String?
+  dueDate      DateTime?
+  isVerified   Boolean              @default(false)
+  verifiedAt   DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  assessment   StepHazardAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@index([phase, type])
+  @@index([categoryId])
+  @@index([phase, categoryId])
+}
+
+
+model AuditLog {
+  id         String          @id @default(cuid())
+  entityType AuditEntityType
+  entityId   String
+  action     AuditAction
+  actor      String?
+  at         DateTime        @default(now())
+  before     Json?
+  after      Json?
+  meta       Json?
+}
+
+model AppUser {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  displayName String?
+  role        UserRole @default(USER)
+  isActive    Boolean  @default(true)
+  entraOid    String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ChangeRequest {
+  id          String              @id @default(cuid())
+  scope       ChangeScope
+  rootId      String
+  status      ChangeRequestStatus @default(PENDING)
+  submittedBy String
+  submittedAt DateTime            @default(now())
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  reason      String?
+  snapshot    Json
+}
+
+enum RiskBand {
+  VERY_LOW
+  LOW
+  MEDIUM
+  MEDIUM_PLUS
+  HIGH
+  VERY_HIGH
+}
+
+enum ControlPhase {
+  EXISTING
+  ADDITIONAL
+}
+
+enum ControlType {
+  ENGINEERING
+  ADMIN
+  PPE
+  OTHER
+}
+
+enum ReviewStatus {
+  DRAFT
+  REVIEWED
+  FINAL
+}
+
+enum AuditAction {
+  UPDATE
+  DELETE
+  CLONE
+  STATUS_CHANGE
+}
+
+enum AuditEntityType {
+  LINE
+  MACHINE
+  TASK
+  STEP
+  ASSESSMENT
+  CONTROL
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum ChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  APPLIED
+}
+
+enum ChangeScope {
+  LINE_TREE
+  MACHINE_TREE
+  TASK_TREE
+  STEP_TREE
+  ASSESSMENT
+  HAZARD_LIBRARY
+  RISK_MATRIX
+}
+
+model ActionCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  color       String?  // optional
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  controls    AssessmentControl[]
+}

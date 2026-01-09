@@ -1,0 +1,19 @@
+{
+  "name": "shared-schemas",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "shared-schemas/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/shared-schemas",
+        "main": "shared-schemas/src/index.ts",
+        "tsConfig": "shared-schemas/tsconfig.lib.json",
+        "assets": ["shared-schemas/*.md"]
+      }
+    }
+  }
+}
