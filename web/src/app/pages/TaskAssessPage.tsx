@@ -20,7 +20,11 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
 import { api } from '../api/client';
 import { listStepsForTask, type Step } from '../api/steps';
-import { getStepsDashboard, type StepDashboardItem } from '../api/dashboard';
+import {
+  getStepsDashboard,
+  type StepDashboardItem,
+  type StepDashboardResponse,
+} from '../api/dashboard';
 
 type Task = {
   id: string;
@@ -67,7 +71,10 @@ export default function TaskAssessPage() {
 
         const sorted = (s ?? []).slice().sort((a, b) => a.stepNo - b.stepNo);
         setSteps(sorted);
-        setStepDash(dash ?? []);
+        const dashSteps = Array.isArray(dash)
+          ? dash
+          : (dash as StepDashboardResponse | null)?.steps ?? [];
+        setStepDash(dashSteps);
 
         if (sorted.length === 0) {
           nav(`/tasks/${taskIdStr}/steps/new`, { replace: true });
@@ -98,10 +105,10 @@ export default function TaskAssessPage() {
 
   // Progress: only show when there is actual assessed data (i.e., at least 1 step not unassessed)
   const total = stepDash?.length ?? 0;
-  const unassessed = stepDash
-    ? stepDash.filter((x) => x.counts.unassessed > 0).length
+  const assessed = stepDash
+    ? stepDash.filter((x) => Boolean(x.currentBand)).length
     : 0;
-  const assessed = total - unassessed;
+  const unassessed = total - assessed;
   const started = total > 0 && assessed > 0;
   const pct = total > 0 ? Math.round((assessed / total) * 100) : 0;
 

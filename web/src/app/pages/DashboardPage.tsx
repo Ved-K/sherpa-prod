@@ -1,3 +1,4 @@
+// src/app/pages/DashboardPage.tsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Lottie, { LottieRefCurrentProps } from 'lottie-react';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +26,7 @@ import {
 import { alpha } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+
 import { brand } from '../theme';
 import { getLinesDashboard, type LineDashboardItem } from '../api/dashboard';
 import { apiJson } from '../api/http';
@@ -583,6 +585,22 @@ export default function DashboardPage() {
     backdropFilter: 'blur(10px)',
   } as const;
 
+  const tilesGridSx = {
+    display: 'grid',
+    gap: 2,
+
+    // ✅ dynamic columns: will add/remove columns automatically based on container width
+    gridTemplateColumns: {
+      xs: '1fr',
+      sm: 'repeat(auto-fit, minmax(260px, 1fr))',
+    },
+
+    // ✅ helps keep rows equal-height (with your Card height: '100%')
+    gridAutoRows: '1fr',
+    alignItems: 'stretch',
+    width: '100%',
+  } as const;
+
   const handleCreatedLine = (created: CreateLineResult) => {
     const newItem: LineDashboardItem = {
       id: created.id as any,
@@ -615,7 +633,6 @@ export default function DashboardPage() {
       sx={{
         position: 'relative',
         minHeight: '100vh',
-        // subtle “premium” background
         bgcolor: alpha('#0b1220', 0.03),
         backgroundImage: `
           radial-gradient(900px 420px at 12% 6%, ${alpha(brand.mint, 0.14)} 0%, transparent 60%),
@@ -684,7 +701,8 @@ export default function DashboardPage() {
           pb: { xs: 3, md: 4 },
         }}
       >
-        <Box sx={{ maxWidth: 1220, mx: 'auto' }}>
+        {/* ✅ FULL-WIDTH, left aligned (no maxWidth cap) */}
+        <Box sx={{ width: '100%' }}>
           {/* Header */}
           <Stack
             direction={{ xs: 'column', md: 'row' }}
@@ -708,6 +726,7 @@ export default function DashboardPage() {
               direction="row"
               gap={1}
               justifyContent={{ xs: 'flex-start', md: 'flex-end' }}
+              flexWrap="wrap"
             >
               <Button
                 variant="outlined"
@@ -830,20 +849,25 @@ export default function DashboardPage() {
 
           {/* Loading */}
           {!lines && (
-            <Box
-              sx={{
-                display: 'grid',
-                gap: 2,
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  md: 'repeat(2, minmax(0, 1fr))',
-                  lg: 'repeat(3, minmax(0, 1fr))',
-                },
-              }}
-            >
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Card key={i} sx={glassCard}>
-                  <CardContent sx={{ p: 2 }}>
+            <Box sx={tilesGridSx}>
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Card
+                  key={i}
+                  sx={{
+                    ...glassCard,
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <CardContent
+                    sx={{
+                      p: 2,
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
                     <Skeleton variant="text" width="62%" />
                     <Skeleton variant="text" width="42%" />
                     <Skeleton
@@ -851,10 +875,13 @@ export default function DashboardPage() {
                       height={10}
                       sx={{ mt: 2, borderRadius: `${RADIUS}px` }}
                     />
+                    <Divider
+                      sx={{ my: 1.35, borderColor: alpha('#000', 0.08) }}
+                    />
                     <Skeleton
                       variant="rounded"
                       height={34}
-                      sx={{ mt: 2, borderRadius: `${RADIUS}px` }}
+                      sx={{ mt: 'auto', borderRadius: `${RADIUS}px` }}
                     />
                   </CardContent>
                 </Card>
@@ -886,17 +913,7 @@ export default function DashboardPage() {
 
           {/* Tiles */}
           {lines && lines.length > 0 && (
-            <Box
-              sx={{
-                display: 'grid',
-                gap: 2,
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  md: 'repeat(2, minmax(0, 1fr))',
-                  lg: 'repeat(3, minmax(0, 1fr))',
-                },
-              }}
-            >
+            <Box sx={tilesGridSx}>
               {sorted.map((line) => {
                 const c: any = line.counts;
                 const veryLow = c.veryLow ?? 0;
@@ -909,6 +926,9 @@ export default function DashboardPage() {
                     key={line.id}
                     sx={{
                       ...glassCard,
+                      height: '100%', // ✅ equal-height tiles
+                      display: 'flex',
+                      flexDirection: 'column',
                       position: 'relative',
                       transition:
                         'transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease',
@@ -935,10 +955,21 @@ export default function DashboardPage() {
                     <CardActionArea
                       onClick={() => nav(`/lines/${line.id}`)}
                       sx={{
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'stretch',
                         '& .MuiCardActionArea-focusHighlight': { opacity: 0 },
                       }}
                     >
-                      <CardContent sx={{ p: 2 }}>
+                      <CardContent
+                        sx={{
+                          p: 2,
+                          width: '100%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          flex: 1,
+                        }}
+                      >
                         <Stack
                           direction="row"
                           justifyContent="space-between"
@@ -982,7 +1013,17 @@ export default function DashboardPage() {
                           sx={{ my: 1.35, borderColor: alpha('#000', 0.08) }}
                         />
 
-                        <Stack direction="row" gap={0.8} flexWrap="wrap">
+                        {/* ✅ keep pill region consistent + bottom-aligned */}
+                        <Stack
+                          direction="row"
+                          gap={0.8}
+                          flexWrap="wrap"
+                          sx={{
+                            mt: 'auto',
+                            minHeight: 26 * 2 + 8,
+                            alignContent: 'flex-start',
+                          }}
+                        >
                           <MetricPill
                             label="Unassessed"
                             value={line.counts.unassessed}

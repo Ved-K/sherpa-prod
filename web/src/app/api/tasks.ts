@@ -1,5 +1,6 @@
+// src/app/api/tasks.ts
 import { api } from './client';
-import type { DotColor } from './dashboard';
+import type { ReviewStatus } from './lines';
 
 export type CreateTaskInput = {
   name: string;
@@ -19,46 +20,51 @@ export type Task = {
   trainingLink?: string | null;
   categoryId?: string | null;
   phaseId?: string | null;
+  status?: ReviewStatus | null;
 };
 
-// matches GET /machines/:machineId/tasks
 export function listTasksForMachine(machineId: string) {
-  return api<Task[]>(`/machines/${machineId}/tasks`);
+  return api<Task[]>(`/machines/${encodeURIComponent(machineId)}/tasks`);
 }
 
-// matches POST /machines/:machineId/tasks
 export function createTask(machineId: string, body: CreateTaskInput) {
-  return api<Task>(`/machines/${machineId}/tasks`, {
+  return api<Task>(`/machines/${encodeURIComponent(machineId)}/tasks`, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body, // ✅ object
   });
 }
 
-// matches GET /tasks/:taskId
 export function getTask(taskId: string) {
-  return api<Task>(`/tasks/${taskId}`);
+  return api<Task>(`/tasks/${encodeURIComponent(taskId)}`);
 }
 
-// matches PATCH /tasks/:taskId
 export function updateTask(taskId: string, body: UpdateTaskInput) {
-  return api<Task>(`/tasks/${taskId}`, {
+  return api<Task>(`/tasks/${encodeURIComponent(taskId)}`, {
     method: 'PATCH',
-    body: JSON.stringify(body),
+    body, // ✅ object
   });
 }
 
-// matches PATCH /tasks/:taskId/status
-export function setTaskStatus(
-  taskId: string,
-  status: 'DRAFT' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED',
-) {
-  return api<Task>(`/tasks/${taskId}/status`, {
+export function setTaskStatus(taskId: string, status: ReviewStatus) {
+  return api<Task>(`/tasks/${encodeURIComponent(taskId)}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: { status },
   });
 }
 
-// matches DELETE /tasks/:taskId
 export function deleteTask(taskId: string) {
-  return api<void>(`/tasks/${taskId}`, { method: 'DELETE' });
+  return api<void>(`/tasks/${encodeURIComponent(taskId)}`, {
+    method: 'DELETE',
+  });
+}
+
+// optional (you listed it)
+export function cloneTask(
+  taskId: string,
+  body: { targetMachineId: string; name?: string; resetStatus?: boolean },
+) {
+  return api<Task>(`/tasks/${encodeURIComponent(taskId)}/clone`, {
+    method: 'POST',
+    body,
+  });
 }

@@ -24,6 +24,14 @@ function isPlainObject(x: any) {
   );
 }
 
+function looksLikeJsonString(s: string) {
+  const t = s.trim();
+  return (
+    (t.startsWith('{') && t.endsWith('}')) ||
+    (t.startsWith('[') && t.endsWith(']'))
+  );
+}
+
 export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
   const url = `${API_BASE}${path}`;
 
@@ -38,6 +46,11 @@ export async function api<T>(path: string, init: ApiInit = {}): Promise<T> {
     body = undefined;
   } else if (typeof originalBody === 'string') {
     body = originalBody;
+
+    // ✅ fallback: if someone passed JSON.stringify(...), still set JSON content-type
+    if (!headers.has('Content-Type') && looksLikeJsonString(originalBody)) {
+      headers.set('Content-Type', 'application/json');
+    }
   } else if (originalBody instanceof FormData) {
     body = originalBody; // browser sets boundary
   } else if (originalBody instanceof Blob) {

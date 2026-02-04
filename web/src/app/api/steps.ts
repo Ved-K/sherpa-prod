@@ -1,5 +1,6 @@
 // src/app/api/steps.ts
 import { api } from './client';
+import type { ReviewStatus } from './lines';
 
 export type Step = {
   id: string;
@@ -8,17 +9,16 @@ export type Step = {
   method?: string | null;
   stepNo: number;
   trainingLink?: string | null;
+  status?: ReviewStatus | null;
 };
 
-// Matches CreateStepDto
 export type StepCreateInput = {
-  stepNo?: number; // optional
+  stepNo?: number;
   title: string;
   method?: string;
   trainingLink?: string;
 };
 
-// Matches BulkCreateStepsDto / StepCreateItemDto (NO stepNo)
 export type StepBulkCreateItem = {
   title: string;
   method?: string;
@@ -26,13 +26,17 @@ export type StepBulkCreateItem = {
 };
 
 export function listStepsForTask(taskId: string) {
-  return api<Step[]>(`/tasks/${taskId}/steps`);
+  return api<Step[]>(`/tasks/${encodeURIComponent(taskId)}/steps`);
+}
+
+export function getStep(stepId: string) {
+  return api<Step>(`/steps/${encodeURIComponent(stepId)}`);
 }
 
 export function createStepForTask(taskId: string, body: StepCreateInput) {
-  return api<Step>(`/tasks/${taskId}/steps`, {
+  return api<Step>(`/tasks/${encodeURIComponent(taskId)}/steps`, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body, // ✅ object
   });
 }
 
@@ -40,20 +44,28 @@ export function bulkCreateStepsForTask(
   taskId: string,
   steps: StepBulkCreateItem[],
 ) {
-  return api<Step[]>(`/tasks/${taskId}/steps/bulk`, {
+  return api<Step[]>(`/tasks/${encodeURIComponent(taskId)}/steps/bulk`, {
     method: 'POST',
-    body: JSON.stringify({ steps }),
+    body: { steps }, // ✅ object
   });
 }
 
-// Matches UpdateStepDto (PATCH /steps/:stepId)
 export function updateStep(stepId: string, body: Partial<StepCreateInput>) {
-  return api<Step>(`/steps/${stepId}`, {
+  return api<Step>(`/steps/${encodeURIComponent(stepId)}`, {
     method: 'PATCH',
-    body: JSON.stringify(body),
+    body, // ✅ object
+  });
+}
+
+export function setStepStatus(stepId: string, status: ReviewStatus) {
+  return api<Step>(`/steps/${encodeURIComponent(stepId)}/status`, {
+    method: 'PATCH',
+    body: { status },
   });
 }
 
 export function deleteStep(stepId: string) {
-  return api<void>(`/steps/${stepId}`, { method: 'DELETE' });
+  return api<void>(`/steps/${encodeURIComponent(stepId)}`, {
+    method: 'DELETE',
+  });
 }

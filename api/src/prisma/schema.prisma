@@ -202,16 +202,28 @@ model AssessmentControl {
 
   owner        String?
   dueDate      DateTime?
-  isVerified   Boolean              @default(false)
   verifiedAt   DateTime?
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   assessment   StepHazardAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
+  status      ControlStatus @default(OPEN)
+  completedAt DateTime?
+  completedBy String?
+  evidenceUrl String?
+
   @@index([assessmentId])
   @@index([phase, type])
   @@index([categoryId])
   @@index([phase, categoryId])
+}
+
+enum ControlStatus {
+  OPEN
+  IN_PROGRESS
+  IMPLEMENTED
+  VERIFIED
+  CANCELLED
 }
 
 

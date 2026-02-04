@@ -1,3 +1,4 @@
+// src/app/pages/StartAssessmentPage.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -9,14 +10,18 @@ import {
   CardContent,
   Chip,
   Divider,
+  IconButton,
   LinearProgress,
   Skeleton,
   Stack,
-  Tab,
-  Tabs,
   TextField,
+  Tooltip,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import HomeIcon from '@mui/icons-material/Home';
@@ -30,6 +35,9 @@ import {
   type MachineDashboardItem,
   type TaskDashboardItem,
 } from '../api/dashboard';
+import { brand } from '../theme';
+
+const RADIUS = 10;
 
 function scoreCounts(c: {
   veryHigh: number;
@@ -107,45 +115,48 @@ function bandChipColor(b: BandKey): 'error' | 'warning' | 'info' | 'success' {
   }
 }
 
-type PickCardItem = {
-  id: string;
-  title: string;
-  subtitle: string;
-};
-
 function ListSkeleton() {
   return (
     <Stack spacing={1}>
       {Array.from({ length: 6 }).map((_, i) => (
-        <Card
+        <Box
           key={i}
-          variant="outlined"
-          sx={{ borderRadius: 2.5, borderColor: 'divider', boxShadow: 'none' }}
+          sx={{
+            borderRadius: `${RADIUS}px`,
+            border: `1px solid ${alpha('#000', 0.08)}`,
+            bgcolor: alpha('#fff', 0.55),
+            backdropFilter: 'blur(10px)',
+            p: 1.2,
+          }}
         >
-          <CardContent>
-            <Skeleton variant="text" width="60%" />
-            <Skeleton variant="text" width="85%" />
-          </CardContent>
-        </Card>
+          <Skeleton variant="text" width="55%" />
+          <Skeleton variant="text" width="80%" />
+        </Box>
       ))}
     </Stack>
   );
 }
 
-function PickList(props: {
+type PickItem = {
+  id: string;
   title: string;
-  searchPlaceholder: string;
+  counts: RiskCounts;
+};
+
+function PickerColumn(props: {
+  title: string;
+  placeholder: string;
   q: string;
   setQ: (v: string) => void;
   loading: boolean;
   disabled?: boolean;
-  items: PickCardItem[];
+  items: PickItem[];
   selectedId: string | null;
   onPick: (id: string) => void;
 }) {
   const {
     title,
-    searchPlaceholder,
+    placeholder,
     q,
     setQ,
     loading,
@@ -155,95 +166,204 @@ function PickList(props: {
     onPick,
   } = props;
 
+  const glassCard = {
+    borderRadius: `${RADIUS}px`,
+    border: `1px solid ${alpha('#000', 0.08)}`,
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    overflow: 'hidden',
+    bgcolor: alpha('#fff', 0.74),
+    backdropFilter: 'blur(10px)',
+  } as const;
+
+  const inputSx = {
+    '& .MuiOutlinedInput-root': { borderRadius: `${RADIUS}px` },
+    bgcolor: alpha('#fff', 0.55),
+    backdropFilter: 'blur(10px)',
+  } as const;
+
   return (
-    <Stack spacing={1.2}>
-      <Stack spacing={0.4}>
-        <Typography sx={{ fontWeight: 950, fontSize: 18 }}>{title}</Typography>
-        <Typography sx={{ color: 'text.secondary', fontWeight: 650 }}>
-          Choose one to continue.
-        </Typography>
-      </Stack>
+    <Card sx={glassCard}>
+      <CardContent sx={{ p: { xs: 1.8, md: 2.2 } }}>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          <Typography sx={{ fontWeight: 950 }}>{title}</Typography>
 
-      <TextField
-        size="small"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder={searchPlaceholder}
-        disabled={disabled}
-        sx={{ width: '100%' }}
-      />
-
-      {loading ? (
-        <ListSkeleton />
-      ) : (
-        <Stack spacing={1}>
-          {items.map((it) => {
-            const selected = selectedId === it.id;
-
-            return (
-              <Card
-                key={it.id}
-                variant="outlined"
-                sx={{
-                  borderRadius: 2.5,
-                  borderColor: selected ? 'rgba(227,0,27,0.45)' : 'divider',
-                  boxShadow: 'none',
-                }}
-              >
-                <CardActionArea
-                  onClick={() => onPick(it.id)}
-                  disabled={disabled}
-                >
-                  <CardContent>
-                    <Stack
-                      direction="row"
-                      justifyContent="space-between"
-                      alignItems="flex-start"
-                      gap={2}
-                    >
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography
-                          sx={{ fontWeight: 950 }}
-                          noWrap
-                          title={it.title}
-                        >
-                          {it.title}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{ color: 'text.secondary', fontWeight: 650 }}
-                        >
-                          {it.subtitle}
-                        </Typography>
-                      </Box>
-
-                      {selected && (
-                        <Chip
-                          size="small"
-                          label="Selected"
-                          sx={{ fontWeight: 900, borderRadius: 2 }}
-                        />
-                      )}
-                    </Stack>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            );
-          })}
-
-          {items.length === 0 && (
-            <Typography sx={{ color: 'text.secondary', fontWeight: 650 }}>
-              Nothing found.
-            </Typography>
-          )}
+          <Box
+            sx={{
+              px: 1.0,
+              height: 24,
+              display: 'inline-flex',
+              alignItems: 'center',
+              borderRadius: `${RADIUS}px`,
+              bgcolor: alpha('#fff', 0.55),
+              border: `1px solid ${alpha('#000', 0.1)}`,
+              backdropFilter: 'blur(10px)',
+              fontWeight: 950,
+              fontSize: 12,
+            }}
+          >
+            {loading ? '…' : items.length}
+          </Box>
         </Stack>
-      )}
-    </Stack>
+
+        <Divider sx={{ my: 1.2, borderColor: alpha('#000', 0.08) }} />
+
+        <TextField
+          size="small"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={placeholder}
+          disabled={disabled}
+          fullWidth
+          sx={inputSx}
+        />
+
+        <Box sx={{ mt: 1.2 }}>
+          {loading ? (
+            <ListSkeleton />
+          ) : (
+            <Stack spacing={1}>
+              {items.map((it) => {
+                const selected = selectedId === it.id;
+                const c = it.counts;
+                const assessed = Math.max(0, c.total - c.unassessed);
+                const pct =
+                  c.total > 0 ? Math.round((assessed / c.total) * 100) : 0;
+
+                return (
+                  <Card
+                    key={it.id}
+                    variant="outlined"
+                    sx={{
+                      borderRadius: `${RADIUS}px`,
+                      borderColor: selected
+                        ? alpha(brand.caramel, 0.55)
+                        : alpha('#000', 0.1),
+                      boxShadow: 'none',
+                      bgcolor: alpha('#fff', 0.55),
+                      backdropFilter: 'blur(10px)',
+                      overflow: 'hidden',
+                      transition:
+                        'border-color 120ms ease, box-shadow 120ms ease',
+                      '&:hover': {
+                        borderColor: alpha('#000', 0.16),
+                        boxShadow: '0 10px 20px rgba(0,0,0,0.05)',
+                      },
+                    }}
+                  >
+                    <CardActionArea
+                      onClick={() => onPick(it.id)}
+                      disabled={disabled}
+                    >
+                      <Box sx={{ p: 1.2 }}>
+                        <Stack
+                          direction="row"
+                          justifyContent="space-between"
+                          gap={1.2}
+                        >
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography
+                              sx={{ fontWeight: 950 }}
+                              noWrap
+                              title={it.title}
+                            >
+                              {it.title}
+                            </Typography>
+                            <Typography
+                              sx={{
+                                mt: 0.3,
+                                color: 'text.secondary',
+                                fontWeight: 750,
+                                fontSize: 12.5,
+                              }}
+                            >
+                              {c.unassessed > 0
+                                ? `${c.unassessed} unassessed`
+                                : 'All assessed'}{' '}
+                              • {c.total} steps • {pct}%
+                            </Typography>
+                          </Box>
+
+                          <Stack direction="row" gap={0.8} alignItems="center">
+                            <Box
+                              sx={{
+                                px: 1.0,
+                                height: 26,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                borderRadius: `${RADIUS}px`,
+                                bgcolor: alpha('#000', 0.05),
+                                border: `1px solid ${alpha('#000', 0.08)}`,
+                                fontWeight: 950,
+                                fontSize: 12,
+                              }}
+                              title="Priority"
+                            >
+                              {scoreCounts(c)}
+                            </Box>
+
+                            {selected && (
+                              <Box
+                                sx={{
+                                  px: 1.0,
+                                  height: 26,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  borderRadius: `${RADIUS}px`,
+                                  bgcolor: alpha(brand.mint, 0.14),
+                                  border: `1px solid ${alpha(brand.mint, 0.22)}`,
+                                  fontWeight: 950,
+                                  fontSize: 12,
+                                }}
+                              >
+                                Selected
+                              </Box>
+                            )}
+                          </Stack>
+                        </Stack>
+
+                        {/* subtle micro progress */}
+                        {c.total > 0 && (
+                          <LinearProgress
+                            variant="determinate"
+                            value={pct}
+                            sx={{
+                              mt: 1.0,
+                              height: 7,
+                              borderRadius: 999,
+                              bgcolor: alpha('#000', 0.06),
+                              '& .MuiLinearProgress-bar': { borderRadius: 999 },
+                            }}
+                          />
+                        )}
+                      </Box>
+                    </CardActionArea>
+                  </Card>
+                );
+              })}
+
+              {items.length === 0 && (
+                <Typography
+                  sx={{ mt: 1, color: 'text.secondary', fontWeight: 750 }}
+                >
+                  Nothing found.
+                </Typography>
+              )}
+            </Stack>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
   );
 }
 
 export default function StartAssessmentPage() {
   const nav = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const [err, setErr] = useState<string | null>(null);
 
@@ -259,8 +379,7 @@ export default function StartAssessmentPage() {
   const [qMachine, setQMachine] = useState('');
   const [qTask, setQTask] = useState('');
 
-  const [tab, setTab] = useState(0); // 0=Line, 1=Machine, 2=Task
-
+  // load lines once
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -276,19 +395,20 @@ export default function StartAssessmentPage() {
         setLines([]);
       }
     })();
-
     return () => {
       alive = false;
     };
   }, []);
 
+  // load machines when line selected
   useEffect(() => {
     if (!lineId) {
       setMachines(null);
       setMachineId(null);
       setTasks(null);
       setTaskId(null);
-      setTab(0);
+      setQMachine('');
+      setQTask('');
       return;
     }
 
@@ -300,11 +420,11 @@ export default function StartAssessmentPage() {
         setMachineId(null);
         setTasks(null);
         setTaskId(null);
-
+        setQMachine('');
+        setQTask('');
         const data = await getMachinesDashboard(lineId);
         if (!alive) return;
         setMachines(data);
-        setTab(1);
       } catch (e: any) {
         if (!alive) return;
         setErr(e?.message ?? 'Failed to load machines');
@@ -317,11 +437,12 @@ export default function StartAssessmentPage() {
     };
   }, [lineId]);
 
+  // load tasks when machine selected
   useEffect(() => {
     if (!machineId) {
       setTasks(null);
       setTaskId(null);
-      if (lineId) setTab(1);
+      setQTask('');
       return;
     }
 
@@ -331,11 +452,10 @@ export default function StartAssessmentPage() {
         setErr(null);
         setTasks(null);
         setTaskId(null);
-
+        setQTask('');
         const data = await getTasksDashboard(machineId);
         if (!alive) return;
         setTasks(data);
-        setTab(2);
       } catch (e: any) {
         if (!alive) return;
         setErr(e?.message ?? 'Failed to load tasks');
@@ -385,13 +505,11 @@ export default function StartAssessmentPage() {
     () => (lines ?? []).find((x) => String(x.id) === String(lineId)) ?? null,
     [lines, lineId],
   );
-
   const selectedMachine = useMemo(
     () =>
       (machines ?? []).find((x) => String(x.id) === String(machineId)) ?? null,
     [machines, machineId],
   );
-
   const selectedTask = useMemo(
     () => (tasks ?? []).find((x) => String(x.id) === String(taskId)) ?? null,
     [tasks, taskId],
@@ -407,7 +525,6 @@ export default function StartAssessmentPage() {
   const assessed = selectedCounts
     ? selectedCounts.total - selectedCounts.unassessed
     : 0;
-
   const pct =
     selectedCounts && selectedCounts.total > 0
       ? Math.round((assessed / selectedCounts.total) * 100)
@@ -424,228 +541,290 @@ export default function StartAssessmentPage() {
     setTaskId(null);
     setMachines(null);
     setTasks(null);
-    setTab(0);
   }
-
   function clearMachine() {
     setMachineId(null);
     setTaskId(null);
     setTasks(null);
-    setTab(1);
   }
-
   function clearTask() {
     setTaskId(null);
-    setTab(2);
   }
 
+  const glassBar = {
+    borderRadius: `${RADIUS}px`,
+    border: `1px solid ${alpha('#000', 0.08)}`,
+    bgcolor: alpha('#fff', 0.72),
+    backdropFilter: 'blur(10px)',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+  } as const;
+
   return (
-    <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
-      <Stack spacing={0.6} sx={{ mb: 2 }}>
-        <Typography sx={{ fontWeight: 950, fontSize: { xs: 26, md: 34 } }}>
-          Start assessment
-        </Typography>
-      </Stack>
-
-      {!!err && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {err}
-        </Alert>
-      )}
-
-      <Card
-        variant="outlined"
-        sx={{ borderRadius: 3, borderColor: 'divider', boxShadow: 'none' }}
+    <Box
+      sx={{
+        position: 'relative',
+        minHeight: '100vh',
+        width: '100%',
+        bgcolor: alpha('#0b1220', 0.03),
+        backgroundImage: `
+          radial-gradient(900px 420px at 12% 6%, ${alpha(brand.mint, 0.14)} 0%, transparent 60%),
+          radial-gradient(780px 360px at 92% 10%, ${alpha(brand.lemon, 0.14)} 0%, transparent 62%),
+          radial-gradient(860px 420px at 86% 88%, ${alpha(brand.caramel, 0.14)} 0%, transparent 62%)
+        `,
+      }}
+    >
+      <Box
+        sx={{
+          maxWidth: 1200,
+          mx: 'auto',
+          px: { xs: 2, md: 3 },
+          py: { xs: 2, md: 3 },
+        }}
       >
-        <CardContent>
-          {/* Chips + Actions */}
-          <Stack spacing={1.25} sx={{ mb: 1.5 }}>
-            <Stack
-              direction="row"
-              gap={1}
-              flexWrap="wrap"
-              alignItems="center"
-              justifyContent="space-between"
+        {/* Header */}
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{ mb: 1.6 }}
+        >
+          <Stack
+            direction="row"
+            gap={1}
+            alignItems="center"
+            sx={{ minWidth: 0 }}
+          >
+            <Tooltip title="Back" arrow>
+              <span>
+                <IconButton
+                  onClick={() => nav(-1)}
+                  sx={{
+                    borderRadius: `${RADIUS}px`,
+                    border: `1px solid ${alpha('#000', 0.1)}`,
+                    bgcolor: alpha('#fff', 0.52),
+                    backdropFilter: 'blur(10px)',
+                  }}
+                >
+                  <ArrowBackIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+
+            <Typography
+              sx={{ fontWeight: 950, fontSize: { xs: 20, md: 24 } }}
+              noWrap
             >
-              <Stack
-                direction="row"
-                gap={1}
-                flexWrap="wrap"
-                alignItems="center"
-              >
-                <Chip
-                  label={
-                    selectedLine ? `Line: ${selectedLine.name}` : 'Line: —'
-                  }
-                  onDelete={selectedLine ? clearLine : undefined}
-                  deleteIcon={<CloseIcon />}
-                  sx={{ fontWeight: 900, borderRadius: 2 }}
-                  variant={selectedLine ? 'filled' : 'outlined'}
-                />
+              Start assessment
+            </Typography>
 
-                <Chip
-                  label={
-                    selectedMachine
-                      ? `Machine: ${selectedMachine.name}`
-                      : 'Machine: —'
-                  }
-                  onDelete={selectedMachine ? clearMachine : undefined}
-                  deleteIcon={<CloseIcon />}
-                  sx={{ fontWeight: 900, borderRadius: 2 }}
-                  variant={selectedMachine ? 'filled' : 'outlined'}
-                  disabled={!selectedLine}
-                />
-
-                <Chip
-                  label={
-                    selectedTask ? `Task: ${selectedTask.name}` : 'Task: —'
-                  }
-                  onDelete={selectedTask ? clearTask : undefined}
-                  deleteIcon={<CloseIcon />}
-                  sx={{ fontWeight: 900, borderRadius: 2 }}
-                  variant={selectedTask ? 'filled' : 'outlined'}
-                  disabled={!selectedMachine}
-                />
-              </Stack>
-
-              <Stack direction="row" gap={1}>
-                <Button
-                  variant="outlined"
-                  startIcon={<HomeIcon />}
-                  onClick={() => nav('/')}
-                  sx={{ borderRadius: 2 }}
-                >
-                  Dashboard
-                </Button>
-
-                <Button
-                  variant="outlined"
-                  startIcon={<PlayArrowIcon />}
-                  onClick={() => nav('/tasks/new')}
-                  sx={{ borderRadius: 2 }}
-                >
-                  Create task
-                </Button>
-
-                <Button
-                  variant="contained"
-                  endIcon={<ArrowForwardIcon />}
-                  disabled={!canStart}
-                  onClick={() => nav(`/tasks/${taskId}/assess`)}
-                  sx={{ fontWeight: 900, borderRadius: 2 }}
-                >
-                  Start
-                </Button>
-              </Stack>
-            </Stack>
-
-            {/* Progress + Highest residual */}
             {started && selectedCounts && (
-              <Box sx={{ mb: 2 }}>
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  sx={{ mb: 0.8 }}
-                >
-                  <Typography sx={{ fontWeight: 900 }}>Progress</Typography>
-
-                  <Stack direction="row" gap={1} alignItems="center">
-                    {highest && (
-                      <Chip
-                        size="small"
-                        label={`Highest risk: ${bandLabel(highest)}`}
-                        color={bandChipColor(highest)}
-                        sx={{ fontWeight: 900, borderRadius: 2 }}
-                      />
-                    )}
-                    <Typography
-                      sx={{ color: 'text.secondary', fontWeight: 750 }}
-                    >
-                      {assessed}/{selectedCounts.total} assessed ({pct}%)
-                    </Typography>
-                  </Stack>
-                </Stack>
-
-                <LinearProgress
-                  variant="determinate"
-                  value={pct}
-                  sx={{ height: 10, borderRadius: 999 }}
-                />
+              <Box
+                sx={{
+                  ml: 0.5,
+                  px: 1.0,
+                  height: 26,
+                  display: { xs: 'none', sm: 'inline-flex' },
+                  alignItems: 'center',
+                  borderRadius: `${RADIUS}px`,
+                  bgcolor: alpha('#fff', 0.55),
+                  border: `1px solid ${alpha('#000', 0.1)}`,
+                  backdropFilter: 'blur(10px)',
+                  fontWeight: 950,
+                  fontSize: 12,
+                }}
+              >
+                {pct}% • {assessed}/{selectedCounts.total}
               </Box>
             )}
           </Stack>
 
-          <Divider sx={{ mb: 1.5 }} />
-
-          {/* Tabs */}
-          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
-            <Tab label="1. Line" />
-            <Tab label="2. Machine" disabled={!lineId} />
-            <Tab label="3. Task" disabled={!machineId} />
-          </Tabs>
-
-          {tab === 0 && (
-            <PickList
-              title="Choose a line"
-              searchPlaceholder="Search lines…"
-              q={qLine}
-              setQ={setQLine}
-              loading={!lines}
-              items={filteredLines.map((x) => ({
-                id: String(x.id),
-                title: x.name,
-                subtitle: `Priority ${scoreCounts(x.counts)} • Steps ${x.counts.total} • Unassessed ${x.counts.unassessed}`,
-              }))}
-              selectedId={lineId}
-              onPick={(id) => {
-                setLineId(id);
-                setMachineId(null);
-                setTaskId(null);
+          <Stack direction="row" gap={1} alignItems="center">
+            <Button
+              variant="outlined"
+              startIcon={<HomeIcon />}
+              onClick={() => nav('/')}
+              sx={{
+                borderRadius: `${RADIUS}px`,
+                fontWeight: 950,
+                borderColor: alpha('#000', 0.18),
               }}
-            />
-          )}
+            >
+              Dashboard
+            </Button>
 
-          {tab === 1 && (
-            <PickList
-              title="Choose a machine"
-              searchPlaceholder="Search machines…"
-              q={qMachine}
-              setQ={setQMachine}
-              loading={!!lineId && !machines}
-              disabled={!lineId}
-              items={filteredMachines.map((x) => ({
-                id: String(x.id),
-                title: x.name,
-                subtitle: `Priority ${scoreCounts(x.counts)} • Steps ${x.counts.total} • Unassessed ${x.counts.unassessed}`,
-              }))}
-              selectedId={machineId}
-              onPick={(id) => {
-                setMachineId(id);
-                setTaskId(null);
-              }}
-            />
-          )}
-
-          {tab === 2 && (
-            <PickList
-              title="Choose a task"
-              searchPlaceholder="Search tasks…"
-              q={qTask}
-              setQ={setQTask}
-              loading={!!machineId && !tasks}
+            <Button
+              variant="outlined"
+              startIcon={<PlayArrowIcon />}
               disabled={!machineId}
-              items={filteredTasks.map((x) => ({
-                id: String(x.id),
-                title: x.name,
-                subtitle: `Priority ${scoreCounts(x.counts)} • Steps ${x.counts.total} • Unassessed ${x.counts.unassessed}`,
-              }))}
-              selectedId={taskId}
-              onPick={(id) => setTaskId(id)}
-            />
-          )}
-        </CardContent>
-      </Card>
+              onClick={() => {
+                if (!machineId) return;
+                // ✅ correct route based on your CreateTaskPage
+                nav(`/machines/${machineId}/tasks/new`);
+              }}
+              sx={{
+                borderRadius: `${RADIUS}px`,
+                fontWeight: 950,
+                borderColor: alpha('#000', 0.18),
+              }}
+            >
+              Create task
+            </Button>
+
+            <Button
+              variant="contained"
+              endIcon={<ArrowForwardIcon />}
+              disabled={!canStart}
+              onClick={() => nav(`/tasks/${taskId}/assess`)}
+              sx={{
+                fontWeight: 950,
+                borderRadius: `${RADIUS}px`,
+                boxShadow: 'none',
+                height: 40,
+              }}
+            >
+              {started ? 'Continue' : 'Start'}
+            </Button>
+          </Stack>
+        </Stack>
+
+        {!!err && (
+          <Alert severity="error" sx={{ mb: 2, borderRadius: `${RADIUS}px` }}>
+            {err}
+          </Alert>
+        )}
+
+        {/* Selection bar (breadcrumbs) */}
+        <Box sx={{ ...glassBar, p: 1.2, mb: 2 }}>
+          <Stack
+            direction={{ xs: 'column', md: 'row' }}
+            gap={1}
+            alignItems={{ xs: 'stretch', md: 'center' }}
+            justifyContent="space-between"
+          >
+            <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
+              <Chip
+                label={selectedLine ? selectedLine.name : 'Line'}
+                onDelete={selectedLine ? clearLine : undefined}
+                deleteIcon={<CloseIcon />}
+                sx={{ fontWeight: 950, borderRadius: `${RADIUS}px` }}
+                variant={selectedLine ? 'filled' : 'outlined'}
+              />
+
+              <Chip
+                label={selectedMachine ? selectedMachine.name : 'Machine'}
+                onDelete={selectedMachine ? clearMachine : undefined}
+                deleteIcon={<CloseIcon />}
+                sx={{ fontWeight: 950, borderRadius: `${RADIUS}px` }}
+                variant={selectedMachine ? 'filled' : 'outlined'}
+                disabled={!selectedLine}
+              />
+
+              <Chip
+                label={selectedTask ? selectedTask.name : 'Task'}
+                onDelete={selectedTask ? clearTask : undefined}
+                deleteIcon={<CloseIcon />}
+                sx={{ fontWeight: 950, borderRadius: `${RADIUS}px` }}
+                variant={selectedTask ? 'filled' : 'outlined'}
+                disabled={!selectedMachine}
+              />
+            </Stack>
+
+            {started && selectedCounts && (
+              <Stack
+                direction="row"
+                gap={1}
+                alignItems="center"
+                sx={{ flexWrap: 'wrap' }}
+              >
+                {highest && (
+                  <Chip
+                    size="small"
+                    label={`Highest: ${bandLabel(highest)}`}
+                    color={bandChipColor(highest)}
+                    sx={{ fontWeight: 950, borderRadius: `${RADIUS}px` }}
+                  />
+                )}
+                <Box sx={{ minWidth: 220, width: isMobile ? '100%' : 260 }}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={pct}
+                    sx={{
+                      height: 9,
+                      borderRadius: 999,
+                      bgcolor: alpha('#000', 0.06),
+                      '& .MuiLinearProgress-bar': { borderRadius: 999 },
+                    }}
+                  />
+                </Box>
+              </Stack>
+            )}
+          </Stack>
+        </Box>
+
+        {/* Main picker: 3 columns */}
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 2,
+            gridTemplateColumns: { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' },
+            alignItems: 'start',
+          }}
+        >
+          <PickerColumn
+            title="Line"
+            placeholder="Search…"
+            q={qLine}
+            setQ={setQLine}
+            loading={!lines}
+            items={filteredLines.map((x) => ({
+              id: String(x.id),
+              title: x.name,
+              counts: x.counts as any,
+            }))}
+            selectedId={lineId}
+            onPick={(id) => {
+              setLineId(id);
+              setMachineId(null);
+              setTaskId(null);
+            }}
+          />
+
+          <PickerColumn
+            title="Machine"
+            placeholder="Search…"
+            q={qMachine}
+            setQ={setQMachine}
+            loading={!!lineId && !machines}
+            disabled={!lineId}
+            items={filteredMachines.map((x) => ({
+              id: String(x.id),
+              title: x.name,
+              counts: x.counts as any,
+            }))}
+            selectedId={machineId}
+            onPick={(id) => {
+              setMachineId(id);
+              setTaskId(null);
+            }}
+          />
+
+          <PickerColumn
+            title="Task"
+            placeholder="Search…"
+            q={qTask}
+            setQ={setQTask}
+            loading={!!machineId && !tasks}
+            disabled={!machineId}
+            items={filteredTasks.map((x) => ({
+              id: String(x.id),
+              title: x.name,
+              counts: x.counts as any,
+            }))}
+            selectedId={taskId}
+            onPick={(id) => setTaskId(id)}
+          />
+        </Box>
+      </Box>
     </Box>
   );
 }
