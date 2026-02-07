@@ -89,25 +89,31 @@ model TaskPhase {
 }
 
 model Step {
-  id          String                 @id @default(uuid())
-  stepNo      Int
-  title       String
-  method      String?
-  trainingLink  String? 
-  taskId      String
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
-  finalizedAt DateTime?
-  finalizedBy String?
-  reviewedAt  DateTime?
-  reviewedBy  String?
-  status      ReviewStatus           @default(DRAFT)
-  task        Task                   @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  assessments StepHazardAssessment[]
+  id           String                 @id @default(uuid())
+  stepNo       Int
+  title        String
+  method       String?
+  trainingLink String?
+  taskId       String
+
+  // ✅ NEW (persists your UI field)
+  reviewDate   DateTime?
+
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  finalizedAt  DateTime?
+  finalizedBy  String?
+  reviewedAt   DateTime?
+  reviewedBy   String?
+  status       ReviewStatus           @default(DRAFT)
+
+  task         Task                   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assessments  StepHazardAssessment[]
 
   @@unique([taskId, stepNo])
   @@index([taskId])
 }
+
 
 model HazardCategory {
   id        String   @id @default(uuid())
@@ -184,6 +190,13 @@ model StepHazardAssessment {
   hazard              Hazard              @relation(fields: [hazardId], references: [id])
   matrix              RiskMatrix          @relation(fields: [matrixId], references: [id])
   step                Step                @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  verifiedSeverity    Int?
+  verifiedProbability Int?
+  verifiedRating      Int?
+  verifiedBand        RiskBand?
+  verifiedAt          DateTime?
+  verifiedBy          String?
 
   @@unique([stepId, hazardId])
   @@index([stepId])

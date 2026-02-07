@@ -35,6 +35,7 @@ export class StepsController {
       dto.method,
       dto.stepNo,
       dto.trainingLink,
+      dto.reviewDate, // ✅ NEW
     );
   }
 

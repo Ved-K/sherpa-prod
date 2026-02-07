@@ -4,11 +4,14 @@ import {
   Delete,
   Get,
   Param,
+  ParseEnumPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
 } from '@nestjs/common';
 import { ControlsService } from './controls.service';
+import { ControlPhase, CreateControlDto, UpdateControlDto } from './dto';
 
 @Controller()
 export class ControlsController {
@@ -16,48 +19,33 @@ export class ControlsController {
 
   @Get('assessments/:assessmentId/controls')
   async listForAssessment(
-    @Param('assessmentId') assessmentId: string,
-    @Query('phase') phase?: 'EXISTING' | 'ADDITIONAL',
+    @Param('assessmentId', new ParseUUIDPipe({ version: '4' }))
+    assessmentId: string,
+    @Query('phase', new ParseEnumPipe(ControlPhase, { optional: true }))
+    phase?: ControlPhase,
   ) {
     return this.svc.listForAssessment(assessmentId, phase);
   }
 
   @Post('assessments/:assessmentId/controls')
   async createForAssessment(
-    @Param('assessmentId') assessmentId: string,
-    @Body()
-    body: {
-      phase: 'EXISTING' | 'ADDITIONAL';
-      type: 'ENGINEERING' | 'ADMIN' | 'PPE' | 'OTHER';
-      description: string;
-      categoryId?: string | null; // required for ADDITIONAL
-      owner?: string;
-      dueDate?: string; // ISO string
-      isVerified?: boolean;
-    },
+    @Param('assessmentId', new ParseUUIDPipe({ version: '4' }))
+    assessmentId: string,
+    @Body() body: CreateControlDto,
   ) {
     return this.svc.createForAssessment(assessmentId, body);
   }
 
   @Patch('controls/:id')
   async update(
-    @Param('id') id: string,
-    @Body()
-    body: {
-      phase?: 'EXISTING' | 'ADDITIONAL';
-      type?: 'ENGINEERING' | 'ADMIN' | 'PPE' | 'OTHER';
-      description?: string;
-      categoryId?: string | null;
-      owner?: string | null;
-      dueDate?: string | null;
-      isVerified?: boolean;
-    },
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: UpdateControlDto,
   ) {
     return this.svc.update(id, body);
   }
 
   @Delete('controls/:id')
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.svc.remove(id);
   }
 }

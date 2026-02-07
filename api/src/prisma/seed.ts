@@ -1,3 +1,4 @@
+// prisma/seed.ts
 import { PrismaClient, RiskBand } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -9,9 +10,6 @@ const prisma = new PrismaClient();
  * Likelihood (Probability) scores: 10,8,6,4,2,1
  *
  * Bands: VERY_LOW, LOW, MEDIUM, MEDIUM_PLUS, HIGH, VERY_HIGH
- *
- * NOTE: Your schema MUST include RiskBand.VERY_LOW.
- * If you haven't added it yet, update enum RiskBand and migrate.
  */
 async function seedRiskMatrixUnilever1() {
   const matrixName = 'Unilever Risk Matrix 1';
@@ -113,8 +111,13 @@ async function seedRiskMatrixUnilever1() {
 /**
  * Seeds the hazard library (categories + hazards).
  * Idempotent and safe:
- * - Categories are upserted by name (keeps custom categories)
- * - Hazards are upserted by code (your schema has code @unique)
+ * - Categories are upserted by name
+ * - Hazards are upserted by code (schema has code @unique)
+ *
+ * IMPORTANT FIX:
+ * Your original seed used hazardSort++ inside BOTH create/update of upsert.
+ * JS evaluates both objects before Prisma picks a branch → sortOrder increments twice.
+ * This version assigns sortOrder deterministically using the loop index.
  */
 async function seedHazardLibrary() {
   type SeedCategory = {
@@ -322,8 +325,10 @@ async function seedHazardLibrary() {
           data: { name: cat.name, sortOrder: cat.sortOrder },
         });
 
-    let hazardSort = 1;
-    for (const hz of cat.hazards) {
+    for (let i = 0; i < cat.hazards.length; i++) {
+      const hz = cat.hazards[i];
+      const sortOrder = i + 1;
+
       await prisma.hazard.upsert({
         where: { code: hz.code },
         create: {
@@ -332,14 +337,14 @@ async function seedHazardLibrary() {
           name: hz.name,
           description: hz.description,
           active: true,
-          sortOrder: hazardSort++,
+          sortOrder,
         },
         update: {
           categoryId: category.id,
           name: hz.name,
           description: hz.description,
           active: true,
-          sortOrder: hazardSort++,
+          sortOrder,
         },
       });
     }
@@ -348,7 +353,12 @@ async function seedHazardLibrary() {
   console.log('✅ Seeded hazard library');
 }
 
-async function seedTaskMeta(prisma: PrismaClient) {
+/**
+ * Seeds task meta:
+ * - TaskCategory: Normal/Abnormal/Emergency/Cleaning/Maintenance
+ * - TaskPhase: Startup/Running/Shutdown/N/A
+ */
+async function seedTaskMeta() {
   const categories = [
     'Normal Operations',
     'Abnormal Operations',
@@ -378,11 +388,44 @@ async function seedTaskMeta(prisma: PrismaClient) {
   console.log('✅ Seeded task meta');
 }
 
+/**
+ * Seeds action/recommendation categories used to group ADDITIONAL controls.
+ * (Edit these to match the categories you want in the Risk Management dashboard.)
+ */
+async function seedActionCategories() {
+  const cats = [
+    { name: 'Guarding / Interlocks', color: '#EF4444' },
+    { name: 'LOTO / Isolation', color: '#F59E0B' },
+    { name: 'Training / SOP', color: '#3B82F6' },
+    { name: 'Housekeeping / 5S', color: '#10B981' },
+    { name: 'PPE / Signage', color: '#8B5CF6' },
+  ];
+
+  for (let i = 0; i < cats.length; i++) {
+    await prisma.actionCategory.upsert({
+      where: { name: cats[i].name },
+      create: {
+        name: cats[i].name,
+        color: cats[i].color,
+        sortOrder: i,
+        isActive: true,
+      },
+      update: {
+        color: cats[i].color,
+        sortOrder: i,
+        isActive: true,
+      },
+    });
+  }
+
+  console.log('✅ Seeded action categories');
+}
+
 async function main() {
-  // If you ever want separate STAGING/PROD seeding, just set DATABASE_URL before running.
   await seedRiskMatrixUnilever1();
   await seedHazardLibrary();
-  await seedTaskMeta(prisma);
+  await seedTaskMeta();
+  await seedActionCategories();
 }
 
 main()

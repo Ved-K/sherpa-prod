@@ -10,6 +10,7 @@ import CreateTaskPage from './pages/CreateTaskPage';
 import CreateStepsPage from './pages/CreateStepsPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import AssessTaskPage from './pages/AssessTaskPage';
+import RiskManagementPage from './pages/RiskManagementPage';
 
 export function App() {
   return (
@@ -18,16 +19,12 @@ export function App() {
         <Route index element={<DashboardPage />} />
 
         <Route path="start" element={<StartAssessmentPage />} />
-        <Route
-          path="risk"
-          element={<PlaceholderPage title="Risk management" />}
-        />
+        <Route path="risk" element={<RiskManagementPage />} />
         <Route path="exports" element={<PlaceholderPage title="Exports" />} />
 
         <Route path="lines/:lineId" element={<LinePage />} />
         <Route path="machines/:machineId" element={<MachinePage />} />
 
-        {/* ✅ Machine-scoped creation */}
         <Route
           path="machines/:machineId/tasks/new"
           element={<CreateTaskPage />}

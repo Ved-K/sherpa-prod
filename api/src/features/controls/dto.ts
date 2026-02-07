@@ -1,18 +1,20 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsEnum,
   IsISO8601,
   IsOptional,
   IsString,
+  IsUUID,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
-export enum ControlPhaseDto {
+export enum ControlPhase {
   EXISTING = 'EXISTING',
   ADDITIONAL = 'ADDITIONAL',
 }
 
-export enum ControlTypeDto {
+export enum ControlType {
   ENGINEERING = 'ENGINEERING',
   ADMIN = 'ADMIN',
   PPE = 'PPE',
@@ -20,54 +22,62 @@ export enum ControlTypeDto {
 }
 
 export class CreateControlDto {
-  @ApiProperty({ enum: ControlPhaseDto })
-  @IsEnum(ControlPhaseDto)
-  phase!: ControlPhaseDto;
+  @IsEnum(ControlPhase)
+  phase!: ControlPhase;
 
-  @ApiProperty({ enum: ControlTypeDto })
-  @IsEnum(ControlTypeDto)
-  type!: ControlTypeDto;
+  @IsEnum(ControlType)
+  type!: ControlType;
 
-  @ApiProperty()
   @IsString()
   @MinLength(1)
   description!: string;
 
-  @ApiPropertyOptional()
+  // required only when phase=ADDITIONAL
+  @ValidateIf((o) => o.phase === ControlPhase.ADDITIONAL)
+  @IsUUID()
+  categoryId?: string;
+
   @IsOptional()
   @IsString()
   owner?: string;
 
-  @ApiPropertyOptional({ description: 'ISO string date' })
   @IsOptional()
   @IsISO8601()
-  dueDate?: string;
+  dueDate?: string; // ISO string
+
+  @IsOptional()
+  @IsBoolean()
+  isVerified?: boolean;
 }
 
 export class UpdateControlDto {
-  @ApiPropertyOptional({ enum: ControlPhaseDto })
   @IsOptional()
-  @IsEnum(ControlPhaseDto)
-  phase?: ControlPhaseDto;
+  @IsEnum(ControlPhase)
+  phase?: ControlPhase;
 
-  @ApiPropertyOptional({ enum: ControlTypeDto })
   @IsOptional()
-  @IsEnum(ControlTypeDto)
-  type?: ControlTypeDto;
+  @IsEnum(ControlType)
+  type?: ControlType;
 
-  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MinLength(1)
   description?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  owner?: string;
+  // allow clearing with null
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsUUID()
+  categoryId?: string | null;
 
-  @ApiPropertyOptional({ description: 'ISO string date' })
-  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsString()
+  owner?: string | null;
+
+  @ValidateIf((_, v) => v !== null && v !== undefined)
   @IsISO8601()
-  dueDate?: string;
+  dueDate?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isVerified?: boolean;
 }

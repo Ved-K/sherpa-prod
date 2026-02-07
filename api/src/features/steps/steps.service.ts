@@ -42,9 +42,15 @@ export class StepsService {
     method?: string,
     stepNo?: number,
     trainingLink?: string,
+    reviewDate?: string | null, // ✅ NEW
   ) {
     await this.ensureTask(taskId);
     const assignedNo = stepNo ?? (await this.nextStepNo(taskId));
+
+    const parsedReviewDate =
+      reviewDate === null || reviewDate === undefined
+        ? undefined
+        : new Date(reviewDate);
 
     try {
       return this.prisma.step.create({
@@ -55,6 +61,7 @@ export class StepsService {
           method,
           trainingLink,
           status: ReviewStatus.DRAFT,
+          ...(parsedReviewDate ? { reviewDate: parsedReviewDate } : {}),
         },
       });
     } catch {
@@ -75,15 +82,27 @@ export class StepsService {
       title?: string;
       method?: string;
       trainingLink?: string;
+      reviewDate?: string | null; // ✅ NEW
     },
     actor = 'anonymous',
   ) {
     const before = await this.get(stepId);
 
+    const prismaData: any = { ...data };
+
+    if ('reviewDate' in data) {
+      prismaData.reviewDate =
+        data.reviewDate === null
+          ? null
+          : data.reviewDate
+            ? new Date(data.reviewDate)
+            : undefined;
+    }
+
     try {
       const after = await this.prisma.step.update({
         where: { id: stepId },
-        data,
+        data: prismaData,
       });
 
       if (this.audit.shouldAudit(before.status)) {

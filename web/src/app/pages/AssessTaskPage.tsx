@@ -77,6 +77,9 @@ import {
   patchControl,
   type Control,
   type ControlType,
+  listControlCategories,
+  createControlCategory,
+  type ControlCategory,
 } from '../api/controls';
 import {
   getStepsDashboard,
@@ -113,6 +116,7 @@ type DraftControl = {
   type: ControlType;
   description: string;
   categoryId?: string; // additional only
+  dueDate?: string | null;
 };
 
 type ControlsCache = {
@@ -213,6 +217,12 @@ function cleanText(s?: string | null): string | undefined {
     .trim()
     .replace(/\s+/g, ' ');
   return t.length ? t : undefined;
+}
+
+function toISODateLocal(d: Date): string {
+  // YYYY-MM-DD in *local* time (prevents timezone shifting the date)
+  const tzOffsetMs = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tzOffsetMs).toISOString().slice(0, 10);
 }
 
 function bandAbbrev(b: RiskBandKey) {
@@ -624,6 +634,23 @@ export default function AssessTaskPage() {
   const nav = useNavigate();
   const theme = useTheme();
 
+  const defaultReviewDateISO = useMemo(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 3);
+    return toISODateLocal(d);
+  }, []);
+
+  const {
+    cats: controlCats,
+    categoryOptions: controlCategoryOptions,
+    categoryNameFromValue,
+    resolveCategoryIdFromNameOrId,
+  } = useControlCategories();
+
+  const todayISO = useMemo(() => toISODateLocal(new Date()), []);
+
+  const autoFilledReviewRef = useRef<Set<string>>(new Set());
+
   const taskIdStr = String(taskId ?? '').trim();
   const [err, setErr] = useState<string | null>(null);
 
@@ -648,6 +675,38 @@ export default function AssessTaskPage() {
     [steps, selectedStepId],
   );
 
+  useEffect(() => {
+    if (!selectedStep) return;
+
+    const existing = (selectedStep as any).reviewDate as
+      | string
+      | null
+      | undefined;
+    if (existing) return;
+
+    if (autoFilledReviewRef.current.has(String(selectedStep.id))) return;
+    autoFilledReviewRef.current.add(String(selectedStep.id));
+
+    const patch: any = { reviewDate: defaultReviewDateISO };
+
+    updateStep(String(selectedStep.id), patch)
+      .then(() => {
+        setSteps((prev) =>
+          prev.map((s) =>
+            String(s.id) === String(selectedStep.id)
+              ? ({
+                  ...(s as any),
+                  reviewDate: defaultReviewDateISO,
+                } as any)
+              : s,
+          ),
+        );
+      })
+      .catch(() => {
+        autoFilledReviewRef.current.delete(String(selectedStep.id));
+      });
+  }, [selectedStep?.id, defaultReviewDateISO]);
+
   const [loadingSteps, setLoadingSteps] = useState(true);
 
   // step edit/delete
@@ -655,6 +714,7 @@ export default function AssessTaskPage() {
   const [editStepTitle, setEditStepTitle] = useState('');
   const [editStepTrainingLink, setEditStepTrainingLink] = useState('');
   const [editStepSaving, setEditStepSaving] = useState(false);
+  const [editStepReviewDate, setEditStepReviewDate] = useState('');
 
   const [deleteStepOpen, setDeleteStepOpen] = useState(false);
   const [deleteStepLoading, setDeleteStepLoading] = useState(false);
@@ -949,7 +1009,10 @@ export default function AssessTaskPage() {
       return (cachedDrafts ?? []).filter((d) => {
         if (d.phase !== phase) return false;
         if (!cleanText(d.description)) return false;
-        if (phase === 'ADDITIONAL' && !cleanText(d.categoryId)) return false;
+        if (phase === 'ADDITIONAL') {
+          if (!cleanText(d.categoryId)) return false;
+          if (!cleanText(d.dueDate)) return false;
+        }
         return true;
       }).length;
     },
@@ -1137,6 +1200,10 @@ export default function AssessTaskPage() {
     setEditStepTitle(selectedStep.title ?? '');
     setEditStepTrainingLink(selectedStep.trainingLink ?? '');
     setEditStepOpen(true);
+    setEditStepReviewDate(
+      ((selectedStep as any).reviewDate as string | null | undefined) ??
+        defaultReviewDateISO,
+    );
   }
 
   async function saveStepEdits() {
@@ -1148,6 +1215,7 @@ export default function AssessTaskPage() {
       const patch: any = {
         title: cleanText(editStepTitle) ?? '',
         trainingLink: cleanText(editStepTrainingLink) ?? null,
+        reviewDate: cleanText(editStepReviewDate) ?? null,
       };
 
       const updated = await updateStep(selectedStepId, patch);
@@ -1581,11 +1649,6 @@ export default function AssessTaskPage() {
     const desc = cleanText(d.description);
     if (!desc) return;
 
-    if (d.phase === 'ADDITIONAL') {
-      const cat = cleanText(d.categoryId);
-      if (!cat) return;
-    }
-
     setErr(null);
     try {
       const payload: any = {
@@ -1594,8 +1657,18 @@ export default function AssessTaskPage() {
         description: desc,
       };
 
-      if (d.phase === 'ADDITIONAL')
-        payload.categoryId = cleanText(d.categoryId) ?? null;
+      if (d.phase === 'ADDITIONAL') {
+        const cat = cleanText(d.categoryId);
+        const due = cleanText(d.dueDate);
+        if (!cat || !due) return; // ✅ only require for additional
+        const catId = await resolveCategoryIdFromNameOrId(d.categoryId);
+        if (!catId) {
+          setErr('Please select a valid recommendation category.');
+          return;
+        }
+        payload.categoryId = catId;
+        payload.dueDate = due;
+      }
 
       const created = await createControl(controlAnchorId, payload);
 
@@ -1713,7 +1786,9 @@ export default function AssessTaskPage() {
     for (const d of drafts) {
       const ok =
         cleanText(d.description) &&
-        (phase === 'EXISTING' || cleanText(d.categoryId));
+        (phase === 'EXISTING'
+          ? true
+          : !!cleanText(d.categoryId) && !!cleanText(d.dueDate));
       if (ok) {
         // eslint-disable-next-line no-await-in-loop
         await createNewControl(d);
@@ -1754,6 +1829,7 @@ export default function AssessTaskPage() {
         type: c.type,
         description: c.description,
         categoryId: (c as any).categoryId ?? null,
+        dueDate: (c as any).dueDate ?? null,
       });
       createdAdditional.push(created);
     }
@@ -2048,21 +2124,8 @@ export default function AssessTaskPage() {
     return Math.round((doneCount / STAGES.length) * 100);
   }, [STAGES.length, stageDone]);
 
-  const additionalControlsPending = useMemo(() => {
-    const anchorId = controlAnchorId ? String(controlAnchorId) : '';
-    if (!hazardsSelected || !anchorId) return false;
-    const counts = cachedControlCounts(anchorId);
-    const addDraft = validDraftCountFor('ADDITIONAL', anchorId);
-    return counts.additional + addDraft === 0;
-  }, [hazardsSelected, controlAnchorId, validDraftCountFor, renderTick]);
-
   const additionalCategoryOptions = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of additionalControls as any[]) {
-      const v = cleanText(c?.categoryId);
-      if (v) s.add(v);
-    }
-    [
+    const fallback = [
       'Training',
       'Procedure',
       'Engineering change',
@@ -2070,9 +2133,11 @@ export default function AssessTaskPage() {
       'Maintenance',
       'Signage',
       'Supervision',
-    ].forEach((x) => s.add(x));
+    ];
+
+    const s = new Set<string>([...controlCategoryOptions, ...fallback]);
     return Array.from(s).sort((a, b) => a.localeCompare(b));
-  }, [additionalControls]);
+  }, [controlCategoryOptions]);
 
   const selectedStepStatus = selectedStep
     ? getStepStatus(String(selectedStep.id))
@@ -2573,6 +2638,16 @@ export default function AssessTaskPage() {
                     >
                       {selectedStep.title || '—'}
                     </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ display: 'block', opacity: 0.8, fontWeight: 700 }}
+                    >
+                      Review date:{' '}
+                      {((selectedStep as any).reviewDate as
+                        | string
+                        | null
+                        | undefined) ?? defaultReviewDateISO}
+                    </Typography>
                   </Box>
 
                   {/* Actions */}
@@ -3001,6 +3076,10 @@ export default function AssessTaskPage() {
                         onAutosaveControl={saveControl}
                         onDeleteControl={removeControl}
                         categoryOptions={[]}
+                        categoryNameFromValue={categoryNameFromValue}
+                        resolveCategoryIdFromNameOrId={
+                          resolveCategoryIdFromNameOrId
+                        }
                       />
                     )}
 
@@ -3036,6 +3115,7 @@ export default function AssessTaskPage() {
                               type: 'ADMIN' as ControlType,
                               description: '',
                               categoryId: 'Training',
+                              dueDate: todayISO,
                             };
                             const next = [...draftControls, nextDraft];
                             setDraftControls(next);
@@ -3062,6 +3142,10 @@ export default function AssessTaskPage() {
                           onAutosaveControl={saveControl}
                           onDeleteControl={removeControl}
                           categoryOptions={additionalCategoryOptions}
+                          categoryNameFromValue={categoryNameFromValue}
+                          resolveCategoryIdFromNameOrId={
+                            resolveCategoryIdFromNameOrId
+                          }
                         />
                       </Stack>
                     )}
@@ -3161,6 +3245,17 @@ export default function AssessTaskPage() {
                 fullWidth
                 autoFocus
                 sx={inputSx}
+              />
+
+              <TextField
+                label="Review date"
+                type="date"
+                value={editStepReviewDate}
+                onChange={(e) => setEditStepReviewDate(e.target.value)}
+                fullWidth
+                sx={inputSx}
+                InputLabelProps={{ shrink: true }}
+                helperText="Auto-set to 3 years from today by default."
               />
 
               <TextField
@@ -3581,6 +3676,69 @@ export default function AssessTaskPage() {
 
 /* ============================ Components ============================ */
 
+function useControlCategories() {
+  const [cats, setCats] = useState<ControlCategory[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    listControlCategories({ activeOnly: true }).then((rows) => {
+      if (!alive) return;
+      setCats(rows);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const categoryOptions = useMemo(() => cats.map((c) => c.name), [cats]);
+
+  const categoryNameFromValue = useCallback(
+    (v?: string | null) => {
+      const s = (v ?? '').trim();
+      if (!s) return '';
+      return (
+        cats.find((c) => c.id === s)?.name ||
+        cats.find((c) => c.name.toLowerCase() === s.toLowerCase())?.name ||
+        s
+      );
+    },
+    [cats],
+  );
+
+  const resolveCategoryIdFromNameOrId = useCallback(
+    async (v?: string | null) => {
+      const s = (v ?? '').trim();
+      if (!s) return null;
+
+      const byId = cats.find((c) => c.id === s);
+      if (byId) return byId.id;
+
+      const byName = cats.find((c) => c.name.toLowerCase() === s.toLowerCase());
+      if (byName) return byName.id;
+
+      const created = await createControlCategory(s);
+      setCats((prev) => {
+        const next = [...prev, created];
+        next.sort(
+          (a, b) =>
+            (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+            a.name.localeCompare(b.name),
+        );
+        return next;
+      });
+      return created.id;
+    },
+    [cats],
+  );
+
+  return {
+    cats,
+    categoryOptions,
+    categoryNameFromValue,
+    resolveCategoryIdFromNameOrId,
+  };
+}
+
 function optionsForControlType(
   phase: 'EXISTING' | 'ADDITIONAL',
   type: ControlType,
@@ -3619,6 +3777,8 @@ function ControlsStage({
   onAutosaveControl,
   onDeleteControl,
   categoryOptions,
+  categoryNameFromValue,
+  resolveCategoryIdFromNameOrId,
 }: {
   phase: 'EXISTING' | 'ADDITIONAL';
   loading: boolean;
@@ -3631,6 +3791,8 @@ function ControlsStage({
   onAutosaveControl: (id: string, patch: any) => Promise<void>;
   onDeleteControl: (id: string) => Promise<void>;
   categoryOptions: string[];
+  categoryNameFromValue: (v?: string | null) => string;
+  resolveCategoryIdFromNameOrId: (v?: string | null) => Promise<string | null>;
 }) {
   const title =
     phase === 'EXISTING'
@@ -3685,6 +3847,8 @@ function ControlsStage({
               categoryOptions={categoryOptions}
               onAutosave={onAutosaveControl}
               onDelete={onDeleteControl}
+              categoryNameFromValue={categoryNameFromValue}
+              resolveCategoryIdFromNameOrId={resolveCategoryIdFromNameOrId}
             />
           ))}
         </Stack>
@@ -3711,7 +3875,9 @@ function ControlDraftRow({
   const { descOptions } = optionsForControlType(phase, d.type);
   const canCommit =
     !!cleanText(d.description) &&
-    (phase === 'EXISTING' || !!cleanText(d.categoryId));
+    (phase === 'EXISTING'
+      ? true
+      : !!cleanText(d.categoryId) && !!cleanText(d.dueDate));
 
   const committingRef = useRef(false);
 
@@ -3725,6 +3891,17 @@ function ControlDraftRow({
       committingRef.current = false;
     }
   }
+
+  const [localCat, setLocalCat] = useState<string>(d.categoryId ?? '');
+  const [localDueDate, setLocalDueDate] = useState<string>(d.dueDate ?? '');
+
+  useEffect(() => {
+    setLocalCat(d.categoryId ?? '');
+  }, [d.categoryId]);
+
+  useEffect(() => {
+    setLocalDueDate(d.dueDate ?? '');
+  }, [d.dueDate]);
 
   return (
     <Box
@@ -3769,25 +3946,48 @@ function ControlDraftRow({
           </TextField>
 
           {phase === 'ADDITIONAL' && (
-            <Autocomplete
-              freeSolo
-              options={categoryOptions}
-              value={d.categoryId ?? ''}
-              onChange={(_, v) => onChange({ categoryId: String(v ?? '') })}
-              onInputChange={(_, v) => onChange({ categoryId: v })}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Recommendation category"
-                  helperText="Select an existing category or type to create a new one."
-                  size="small"
-                  sx={{ minWidth: { xs: '100%', md: 340 }, ...inputSx }}
-                  onBlur={() => void tryCommit()}
-                />
-              )}
-              openOnFocus={false}
-              autoHighlight
-            />
+            <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>
+              <Autocomplete
+                freeSolo
+                options={categoryOptions}
+                value={localCat}
+                onChange={(_, v) => {
+                  const cat = String(v ?? '');
+                  setLocalCat(cat);
+                  onChange({ categoryId: cat });
+                }}
+                onInputChange={(_, v) => {
+                  setLocalCat(v);
+                  onChange({ categoryId: v });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Recommendation category"
+                    helperText="Select an existing category or type to create a new one."
+                    size="small"
+                    sx={{ minWidth: { xs: '100%', md: 340 }, ...inputSx }}
+                  />
+                )}
+                openOnFocus={false}
+                autoHighlight
+              />
+
+              <TextField
+                label="Complete by"
+                type="date"
+                value={localDueDate}
+                onChange={(e) => {
+                  const date = e.target.value;
+                  setLocalDueDate(date);
+                  onChange({ dueDate: date });
+                }}
+                size="small"
+                sx={{ minWidth: { xs: '100%', md: 220 }, ...inputSx }}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ min: toISODateLocal(new Date()) }}
+              />
+            </Stack>
           )}
         </Stack>
 
@@ -3854,16 +4054,21 @@ function ControlSavedRow({
   categoryOptions,
   onAutosave,
   onDelete,
+  categoryNameFromValue,
+  resolveCategoryIdFromNameOrId,
 }: {
   c: any;
   phase: 'EXISTING' | 'ADDITIONAL';
   categoryOptions: string[];
   onAutosave: (id: string, patch: any) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  categoryNameFromValue: (v?: string | null) => string;
+  resolveCategoryIdFromNameOrId: (v?: string | null) => Promise<string | null>;
 }) {
   const [localType, setLocalType] = useState<ControlType>(c.type);
   const [localDesc, setLocalDesc] = useState<string>(c.description ?? '');
   const [localCat, setLocalCat] = useState<string>(c.categoryId ?? '');
+  const [localDueDate, setLocalDueDate] = useState<string>(c.dueDate ?? '');
   const [saving, setSaving] = useState(false);
 
   const saveTimerRef = useRef<number | null>(null);
@@ -3871,7 +4076,8 @@ function ControlSavedRow({
   useEffect(() => {
     setLocalType(c.type);
     setLocalDesc(c.description ?? '');
-    setLocalCat(c.categoryId ?? '');
+    setLocalCat(categoryNameFromValue(c.categoryId));
+    setLocalDueDate(c.dueDate ?? '');
   }, [c.id]);
 
   useEffect(() => {
@@ -3898,8 +4104,11 @@ function ControlSavedRow({
       };
 
       if (phase === 'ADDITIONAL') {
-        patch.categoryId = cleanText(localCat) ?? null;
-        if (!patch.description || !patch.categoryId) return;
+        const catId = await resolveCategoryIdFromNameOrId(localCat);
+        patch.categoryId = catId;
+        patch.dueDate = cleanText(localDueDate) ?? null;
+
+        if (!patch.description || !patch.categoryId || !patch.dueDate) return;
       }
 
       setSaving(true);
@@ -3914,7 +4123,7 @@ function ControlSavedRow({
   useEffect(() => {
     scheduleAutosave();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localType, localDesc, localCat]);
+  }, [localType, localDesc, localCat, localDueDate]);
 
   return (
     <Box
@@ -3962,24 +4171,37 @@ function ControlSavedRow({
           </TextField>
 
           {phase === 'ADDITIONAL' && (
-            <Autocomplete
-              freeSolo
-              options={categoryOptions}
-              value={localCat}
-              onChange={(_, v) => setLocalCat(String(v ?? ''))}
-              onInputChange={(_, v) => setLocalCat(v)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Recommendation category"
-                  helperText="Select an existing category or type to create a new one."
-                  size="small"
-                  sx={{ minWidth: { xs: '100%', md: 340 }, ...inputSx }}
-                />
-              )}
-              openOnFocus={false}
-              autoHighlight
-            />
+            <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>
+              <Autocomplete
+                freeSolo
+                options={categoryOptions}
+                value={localCat}
+                onChange={(_, v) => setLocalCat(String(v ?? ''))}
+                onInputChange={(_, v) => setLocalCat(v)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Recommendation category"
+                    helperText="Select an existing category or type to create a new one."
+                    size="small"
+                    sx={{ minWidth: { xs: '100%', md: 340 }, ...inputSx }}
+                  />
+                )}
+                openOnFocus={false}
+                autoHighlight
+              />
+
+              <TextField
+                label="Complete by"
+                type="date"
+                value={localDueDate}
+                onChange={(e) => setLocalDueDate(e.target.value)}
+                size="small"
+                sx={{ minWidth: { xs: '100%', md: 220 }, ...inputSx }}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ min: toISODateLocal(new Date()) }}
+              />
+            </Stack>
           )}
         </Stack>
 

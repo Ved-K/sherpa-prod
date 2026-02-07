@@ -18,6 +18,7 @@ import { ActionCategoriesModule } from '../features/action-categories/action-cat
 
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { UserContextMiddleware } from '../common/user-content.middleware';
+import { RiskManagementDashboardModule } from '../features/risk-management-dashboard/risk-management-dashboard.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { UserContextMiddleware } from '../common/user-content.middleware';
     ExportsModule,
     DashboardModule,
     ActionCategoriesModule,
+    RiskManagementDashboardModule,
   ],
 })
 export class AppModule implements NestModule {
